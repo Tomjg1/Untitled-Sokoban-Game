@@ -25,8 +25,8 @@ in /src/objects
 
 ## How to run it?
 
-- `pip install livereload`
-- `python server.py`
+`pip install livereload`
+`python server.py`
 
 This will open a web browser in port 8000 and run your project.
 
