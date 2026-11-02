@@ -1,0 +1,27 @@
+version: 2.1
+
+# Define the jobs we want to run for this project
+jobs:
+  build:
+    executor: aws-cli/default
+    steps:
+      - checkout
+      - aws-cli/setup:
+          profile-name: default
+      - run:
+          name: Zip project contents
+          command: zip -r student-template.zip . -x ".circleci/*" ".git/*" "student-template.zip"
+      - run:
+          name: Upload to S3
+          command: aws s3 cp student-template.zip s3://constructionyard.ca/student-template.zip
+
+orbs:
+  aws-cli: circleci/aws-cli@1.2.1
+# Orchestrate our job run sequence
+workflows:
+  build_app:
+    jobs:
+      - build:
+          filters:
+            branches:
+              only: master
