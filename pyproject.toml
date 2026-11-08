@@ -1,0 +1,7 @@
+[project]
+name = "untitled-sokoban-game"
+version = "0.1.0"
+requires-python = ">=3.15"
+dependencies = [
+    "livereload>=2.7.1",
+]
