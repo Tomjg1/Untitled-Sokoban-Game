@@ -29,6 +29,12 @@ async function createMesh(mesh, object, vertShader, fragShader) {
   return testModel;
 }
 
+async function loadShaderSource(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to load ${url}: ${res.status}`);
+  return res.text();
+}
+
 /**
  * Main function that gets called when the DOM loads
  */
@@ -52,38 +58,8 @@ async function main() {
    * Sample vertex and fragment shader here that simply applies MVP matrix 
    * and diffuse colour of each object
    */
-  const vertShaderSample =
-    `#version 300 es
-        in vec3 aPosition;
-        in vec3 aNormal;
-
-        uniform mat4 uProjectionMatrix;
-        uniform mat4 uViewMatrix;
-        uniform mat4 uModelMatrix;
-
-        out vec3 oNormal;
-
-        void main() {
-            // Simply use this normal so no error is thrown
-            oNormal = aNormal;
-
-            // Postion of the fragment in world space
-            gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * vec4(aPosition, 1.0);
-        }
-        `;
-
-  const fragShaderSample =
-    `#version 300 es
-        #define MAX_LIGHTS 20
-        precision highp float;
-
-        uniform vec3 diffuseVal;
-
-        out vec4 fragColor;
-        void main() {
-            fragColor = vec4(diffuseVal, 1.0);
-        }
-        `;
+  const vertShaderSample = await loadShaderSource("assets/shaders/sample.vert")
+  const fragShaderSample = await loadShaderSource("assets/shaders/sample.frag")
 
   /**
    * Initialize state with new values (some of these you can replace/change)
