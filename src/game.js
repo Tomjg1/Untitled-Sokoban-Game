@@ -41,7 +41,11 @@ class Game {
 
   // runs once on startup after the scene loads the objects
   async onStart() {
-    // console.log("On start");
+    console.log("On start");
+	this.state.cameraViewMatrix = mat4.create();
+    this.state.cameraProjMatrix = mat4.create();
+	this.state.sunViewMatrix = mat4.create();
+	this.state.sunProjMatrix = mat4.create();
 
     // // this just prevents the context menu from popping up when you right click
     // document.addEventListener("contextmenu", (e) => {
@@ -143,5 +147,36 @@ class Game {
 
     // example - call our collision check method on our cube
     // this.checkCollision(this.cube);
-  }
+	
+  	let camFront = vec3.fromValues(0, 0, 0);
+    vec3.add(camFront, state.camera.position, state.camera.front);
+    mat4.lookAt(this.state.cameraViewMatrix, state.camera.position, camFront, state.camera.up);
+
+    // Projection Matrix ....
+    let fovy = 90.0 * Math.PI / 180.0; // Vertical field of view in radians
+    let aspect = state.canvas.clientWidth / state.canvas.clientHeight; // Aspect ratio of the canvas
+    let near = 0.1; // Near clipping plane
+    let far = 1000000.0; // Far clipping plane
+    mat4.perspective(this.state.cameraProjMatrix, fovy, aspect, near, far);
+
+	// Sun view and projection
+	const center = vec3.fromValues(0, 0, 0);
+	const sunDir = vec3.fromValues(-1, -1, 1);
+	calculateSunViewMatrix(this.state.sunViewMatrix, center, sunDir);
+	calculateSunProjMatrix(this.state.sunProjMatrix, 5, 10);
+ }
+}
+
+function calculateSunViewMatrix(out, center, sunDir, distance = 10, up = [0, 1, 0]) {
+	const dir = vec3.normalize(vec3.create(), sunDir);
+	const eye = vec3.scaleAndAdd(vec3.create(), center, dir, -distance);
+
+	// Avoid a degenerate lookAt when the sun is (nearly) parallel to up
+	const safeUp = Math.abs(vec3.dot(dir, up)) > 0.999 ? [0, 0, 1] : up;
+
+	return mat4.lookAt(out, eye, center, safeUp);
+}
+
+function calculateSunProjMatrix(out, sceneRadius, distance) {
+	return mat4.ortho(out, -sceneRadius, sceneRadius, -sceneRadius, sceneRadius, 0.1, sceneRadius + distance);
 }
