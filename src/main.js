@@ -61,6 +61,24 @@ async function main() {
   const vertShaderSample = await loadShaderSource("assets/shaders/sample.vert")
   const fragShaderSample = await loadShaderSource("assets/shaders/sample.frag")
 
+  const quadVertSource = await loadShaderSource("assets/shaders/quad.vert")
+  const quadFragSource = await loadShaderSource("assets/shaders/quad.frag")
+
+  const quadShader = initShaderProgram(gl, quadVertSource, quadFragSource)
+
+	// Collect all the info needed to use the shader program.
+	const quadProgramInfo = {
+		// The actual shader program
+		program: quadShader,
+		attribLocations: {},
+		uniformLocations: {
+			projection: gl.getUniformLocation(quadShader, 'uProjection'),
+			pos: gl.getUniformLocation(quadShader, 'uPos'),
+			size: gl.getUniformLocation(quadShader, 'uSize'),
+		},
+	};
+	shaderValuesErrorCheck(quadProgramInfo);
+
   /**
    * Initialize state with new values (some of these you can replace/change)
    */
@@ -77,6 +95,7 @@ async function main() {
     meshCache: {},
     samplerExists: 0,
     samplerNormExists: 0,
+	quadShader: quadProgramInfo
   };
 
   state.numLights = state.pointLights.length;
@@ -136,6 +155,7 @@ function startRendering(gl, state) {
 
     state.deltaTime = deltaTime;
     drawScene(gl, deltaTime, state);
+	drawScreenQuads(gl, deltaTime, state);
     game.onUpdate(deltaTime); //constantly call our game loop
 
     // Request another frame when this one is done
@@ -145,6 +165,19 @@ function startRendering(gl, state) {
   requestAnimationFrame(render);
 }
 
+function drawScreenQuads(gl, deltaTime, state) {
+
+	gl.useProgram(state.quadShader.program);
+	let projection = mat4.create();
+	mat4.ortho(projection, 0, gl.canvas.width, 0, gl.canvas.height, 1, -0.5);
+	let pos = vec2.fromValues(0,0);
+	let size = vec2.fromValues(200,200);
+
+	gl.uniform2fv(state.quadShader.uniformLocations.pos, pos); 
+	gl.uniform2fv(state.quadShader.uniformLocations.size, size); 	
+	gl.uniformMatrix4fv(state.quadShader.uniformLocations.projection, false, projection);
+	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
 /**
  * 
  * @param {gl context} gl 
