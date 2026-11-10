@@ -239,12 +239,12 @@ function drawScene(gl, deltaTime, state) {
 
       if (object.parent) {
         let parent = getObject(state, object.parent);
-        if (parent.model && parent.model.modelMatrix) {
-          mat4.multiply(modelMatrix, parent.model.modelMatrix, modelMatrix);
+        if (parent.model && parent.modelMatrix) {
+          mat4.multiply(modelMatrix, parent.modelMatrix, modelMatrix);
         }
       }
 
-      object.model.modelMatrix = modelMatrix;
+      object.modelMatrix = modelMatrix;
       gl.uniformMatrix4fv(object.programInfo.uniformLocations.model, false, modelMatrix);
 
       // Normal Matrix ....
