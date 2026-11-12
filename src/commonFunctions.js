@@ -184,6 +184,10 @@ function initNormalAttribute(gl, programInfo, normalArray) {
 }
 
 function initTextureCoords(gl, programInfo, textureCoords) {
+  if (textureCoords == null || textureCoords.length === 0) {
+    console.warn('initTextureCoords: no UVs supplied');
+    return null;
+  }
   if (textureCoords != null && textureCoords.length > 0) {
     // Create a buffer for the positions.
     const textureCoordBuffer = gl.createBuffer();
@@ -224,8 +228,6 @@ function initTextureCoords(gl, programInfo, textureCoords) {
       gl.enableVertexAttribArray(
         programInfo.attribLocations.vertexUV);
     }
-
-    // TODO: Create and populate a buffer for the UV coordinates
 
     return textureCoordBuffer;
   }
@@ -272,8 +274,6 @@ function initBitangentBuffer(gl, programInfo, bitangents) {
       gl.enableVertexAttribArray(
         programInfo.attribLocations.vertexBitangent);
     }
-
-    // TODO: Create and populate a buffer for the UV coordinates
 
     return bitangentBuffer;
   }

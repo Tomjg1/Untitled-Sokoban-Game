@@ -46,6 +46,7 @@ class Game {
     this.state.cameraProjMatrix = mat4.create();
 	this.state.sunViewMatrix = mat4.create();
 	this.state.sunProjMatrix = mat4.create();
+	this.state.sunVPMatrix = mat4.create();
 
     // // this just prevents the context menu from popping up when you right click
     // document.addEventListener("contextmenu", (e) => {
@@ -160,10 +161,11 @@ class Game {
     mat4.perspective(this.state.cameraProjMatrix, fovy, aspect, near, far);
 
 	// Sun view and projection
-	const center = vec3.fromValues(0, 0, 0);
+	const center = vec3.fromValues(2.5, 0, 2.5);
 	const sunDir = vec3.fromValues(-1, -1, 1);
 	calculateSunViewMatrix(this.state.sunViewMatrix, center, sunDir);
 	calculateSunProjMatrix(this.state.sunProjMatrix, 5, 10);
+	mat4.mul(this.state.sunVPMatrix, this.state.sunProjMatrix, this.state.sunViewMatrix);
  }
 }
 
