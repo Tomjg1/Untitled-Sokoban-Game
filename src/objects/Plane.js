@@ -32,6 +32,8 @@ class Plane extends RenderObject {
 		  1, 0, 0,
       ]
     };
+
+	this.model.shaderType = this.model.normalTexture !== "defaultNormal.jpg" ? 3 : 0;
   }
 
   // Overload scale so we only scale in x and z axis

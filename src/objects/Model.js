@@ -18,6 +18,7 @@ class Model extends RenderObject {
     this.translate(this.initialTransform.position);
     this.model.rotation = this.initialTransform.rotation;
     this.initBuffers();
+	this.shaderType = this.model.normalTexture != "defaultNormal.jpg" ? 3 : 0
   }
 
   initBuffers() {
@@ -25,6 +26,7 @@ class Model extends RenderObject {
     const positions = new Float32Array(this.model.vertices);
     const normals = new Float32Array(this.model.normals);
     const textureCoords = new Float32Array(this.model.uvs);
+	const bitangents = computeBitangents(positions,normals, textureCoords);
     var vertexArrayObject = this.gl.createVertexArray();
     this.gl.bindVertexArray(vertexArrayObject);
 
@@ -34,6 +36,7 @@ class Model extends RenderObject {
         position: initPositionAttribute(this.gl, this.programInfo, positions),
         normal: initNormalAttribute(this.gl, this.programInfo, normals),
         uv: initTextureCoords(this.gl, this.programInfo, textureCoords),
+		bitangents: initBitangentBuffer(this.gl, this.programInfo, bitangents),
       },
       numVertices: positions.length
     }

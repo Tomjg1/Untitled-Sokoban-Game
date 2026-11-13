@@ -43,7 +43,7 @@ vec3 calcDirectionalLight(DirectionalLight light, vec3 normal, vec3 baseDiffuse,
 	vec3 specular = vec3(0.0);
 	if (diff > 0.0)
 	{
-		specular = 0.9 * Ld * pow(max(dot(N, H), 0.0), 32.0);
+		specular = 0.075 * Ld * pow(max(dot(N, H), 0.0), 32.0);
 	}
 
 	return ambient + ((1.0 - shadow) * (diffuse + specular));
@@ -71,7 +71,7 @@ float calcShadow(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir) {
 
 	vec3 N = normalize(normal);
 	vec3 L = normalize(-lightDir);
-	float bias = max(0.05 * (1.0 - dot(N, L)), 0.005);  
+	float bias = max(0.01 * (1.0 - dot(N, L)), 0.005);  
     // check whether current frag pos is in shadow
 	float shadow = currentDepth - bias > closestDepth  ? 1.0 : 0.0;  
 

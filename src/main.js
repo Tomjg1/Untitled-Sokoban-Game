@@ -36,7 +36,7 @@ async function loadShaderSource(url) {
 }
 
 function initDepthObjects(gl, state) {
-	const SHADOW_SIZE = 1024;
+	const SHADOW_SIZE = 2048;
 
 	const depthTexture = gl.createTexture();
 	gl.bindTexture(gl.TEXTURE_2D, depthTexture);
@@ -334,7 +334,7 @@ function drawScene(gl, deltaTime, state, viewMatrix, projectionMatrix) {
         }
 
         //check for normal texture and apply it
-        if (object.model.textureNorm != null) {
+        if (object.model.textureNorm != null && object.model.shaderType == 3) {
           state.samplerNormExists = 1;
           gl.activeTexture(gl.TEXTURE1);
           gl.uniform1i(object.programInfo.uniformLocations.normalSamplerExists, state.samplerNormExists);

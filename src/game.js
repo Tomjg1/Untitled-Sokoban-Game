@@ -161,10 +161,10 @@ class Game {
     mat4.perspective(this.state.cameraProjMatrix, fovy, aspect, near, far);
 
 	// Sun view and projection
-	const center = vec3.fromValues(2.5, 0, 2.5);
+	const center = calculateWorldCenter(18, 12);
 	const sunDir = vec3.fromValues(-1, -1, 1);
 	calculateSunViewMatrix(this.state.sunViewMatrix, center, sunDir);
-	calculateSunProjMatrix(this.state.sunProjMatrix, 5, 10);
+	calculateSunProjMatrix(this.state.sunProjMatrix, calculateWorldRadius(18,12), 5);
 	mat4.mul(this.state.sunVPMatrix, this.state.sunProjMatrix, this.state.sunViewMatrix);
  }
 }
@@ -181,4 +181,12 @@ function calculateSunViewMatrix(out, center, sunDir, distance = 10, up = [0, 1, 
 
 function calculateSunProjMatrix(out, sceneRadius, distance) {
 	return mat4.ortho(out, -sceneRadius, sceneRadius, -sceneRadius, sceneRadius, 0.1, sceneRadius + distance);
+}
+
+function calculateWorldCenter(width, height) {
+	return vec3.fromValues(width / 2.0, 0.0, height / 2.0);
+}
+
+function calculateWorldRadius(width, height) {
+  return Math.hypot(width, height) / 2;
 }

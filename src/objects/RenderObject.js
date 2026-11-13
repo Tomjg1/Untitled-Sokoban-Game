@@ -29,7 +29,7 @@ class RenderObject {
       normalTexture: object.material && object.material.normalTexture && object.material.normalTexture.name ? object.material.normalTexture.name : "defaultNormal.jpg",
       textureNorm: object.material && object.material.normalTexture && object.material.normalTexture.name ? getTextures(glContext, object.material.normalTexture.name) : null,
     };
-
+	this.shaderType = this.model.normalTexture != "defaultNormal.jpg" ? 3 : 0
     this.modelMatrix = mat4.create();
     this.lightingShader = this.lightingShader.bind(this);
   }
