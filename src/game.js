@@ -47,6 +47,8 @@ class Game {
 	this.state.sunViewMatrix = mat4.create();
 	this.state.sunProjMatrix = mat4.create();
 	this.state.sunVPMatrix = mat4.create();
+	
+	this.state.animator = new Animator();
 
     // // this just prevents the context menu from popping up when you right click
     // document.addEventListener("contextmenu", (e) => {
@@ -119,6 +121,28 @@ class Game {
     //     this.spawnedObjects.push(tempObject);     // add these to a spawned objects list
     //     this.collidableObjects.push(tempObject);  // say these can be collided into
     //   }
+	
+    let tempObject = await spawnObject({
+      name: `TempBox`,
+      type: "mesh",
+      fileName: "Box.obj",
+      material: {
+        diffuse: vec3.fromValues(1.0, 1.0, 1.0),
+        diffuseTexture: {
+          name: "Universal_A_Alb.png",
+        },
+      },
+      position: vec3.fromValues(5, 0, 5),
+      scale: vec3.fromValues(1.0, 1.0, 1.0)
+    }, this.state);
+
+		 const box = {
+			 type: "box",
+			 canonicalPos: {x: 1, z: 1},
+			 submerged: false,
+			 sceneObject: tempObject,
+		 }
+		 this.state.animator.addObject({ x: 5, z: 5 }, tempObject, "box");
   }
 
   // Runs once every frame non stop after the scene loads
