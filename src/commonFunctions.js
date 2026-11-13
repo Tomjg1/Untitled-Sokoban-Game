@@ -184,6 +184,10 @@ function initNormalAttribute(gl, programInfo, normalArray) {
 }
 
 function initTextureCoords(gl, programInfo, textureCoords) {
+  if (textureCoords == null || textureCoords.length === 0) {
+    console.warn('initTextureCoords: no UVs supplied');
+    return null;
+  }
   if (textureCoords != null && textureCoords.length > 0) {
     // Create a buffer for the positions.
     const textureCoordBuffer = gl.createBuffer();
@@ -225,10 +229,93 @@ function initTextureCoords(gl, programInfo, textureCoords) {
         programInfo.attribLocations.vertexUV);
     }
 
-    // TODO: Create and populate a buffer for the UV coordinates
-
     return textureCoordBuffer;
   }
+}
+
+function computeBitangents(positions, normals, uvs) {
+  if (positions.length === 0) throw new RangeError("positions is empty");
+  if (positions.length % 3 !== 0) {
+    throw new RangeError(`positions length (${positions.length}) must be a multiple of 3`);
+  }
+
+  const vertexCount = positions.length / 3;
+
+  if (vertexCount % 3 !== 0) {
+    throw new RangeError(
+      `vertex count (${vertexCount}) must be a multiple of 3 (non-indexed triangles)`
+    );
+  }
+  if (normals.length !== positions.length) {
+    throw new RangeError(
+      `normals length (${normals.length}) must equal positions length (${positions.length})`
+    );
+  }
+  if (uvs.length !== vertexCount * 2) {
+    throw new RangeError(
+      `uvs length (${uvs.length}) must be 2 per vertex (expected ${vertexCount * 2})`
+    );
+  }
+
+  // --- Value checks (NaN / Infinity) ---
+  for (const [name, arr] of [["positions", positions], ["normals", normals], ["uvs", uvs]]) {
+    for (let i = 0; i < arr.length; i++) {
+      if (!Number.isFinite(arr[i])) {
+        throw new RangeError(`${name}[${i}] is not a finite number (${arr[i]})`);
+      }
+    }
+  }
+
+  // --- Normals should be non-zero ---
+  for (let v = 0; v < vertexCount; v++) {
+    const nx = normals[v * 3], ny = normals[v * 3 + 1], nz = normals[v * 3 + 2];
+    if (nx * nx + ny * ny + nz * nz < 1e-12) {
+      console.warn(`computeBitangents: normal at vertex ${v} has zero length`);
+    }
+  }
+
+  const bitangents = new Float32Array(positions.length);
+  let skipped = 0;
+
+  for (let i = 0; i < vertexCount; i += 3) {
+    const [i0, i1, i2] = [i, i + 1, i + 2];
+
+    const e1 = [0, 1, 2].map(k => positions[i1 * 3 + k] - positions[i0 * 3 + k]);
+    const e2 = [0, 1, 2].map(k => positions[i2 * 3 + k] - positions[i0 * 3 + k]);
+
+    const du1 = uvs[i1 * 2]     - uvs[i0 * 2];
+    const dv1 = uvs[i1 * 2 + 1] - uvs[i0 * 2 + 1];
+    const du2 = uvs[i2 * 2]     - uvs[i0 * 2];
+    const dv2 = uvs[i2 * 2 + 1] - uvs[i0 * 2 + 1];
+
+    const det = du1 * dv2 - du2 * dv1;
+    if (Math.abs(det) < 1e-8) { // degenerate UV triangle
+      skipped++;
+      continue;
+    }
+    const r = 1 / det;
+
+    const b = [0, 1, 2].map(k => (e2[k] * du1 - e1[k] * du2) * r);
+
+    for (const idx of [i0, i1, i2]) {
+      const nx = normals[idx * 3], ny = normals[idx * 3 + 1], nz = normals[idx * 3 + 2];
+      const d = nx * b[0] + ny * b[1] + nz * b[2];
+      const x = b[0] - nx * d, y = b[1] - ny * d, z = b[2] - nz * d;
+      const len = Math.hypot(x, y, z) || 1;
+
+      bitangents[idx * 3]     = x / len;
+      bitangents[idx * 3 + 1] = y / len;
+      bitangents[idx * 3 + 2] = z / len;
+    }
+  }
+
+  if (skipped > 0) {
+    console.warn(
+      `computeBitangents: skipped ${skipped} triangle(s) with degenerate UVs (bitangents left as zero)`
+    );
+  }
+
+  return bitangents;
 }
 
 function initBitangentBuffer(gl, programInfo, bitangents) {
@@ -272,8 +359,6 @@ function initBitangentBuffer(gl, programInfo, bitangents) {
       gl.enableVertexAttribArray(
         programInfo.attribLocations.vertexBitangent);
     }
-
-    // TODO: Create and populate a buffer for the UV coordinates
 
     return bitangentBuffer;
   }

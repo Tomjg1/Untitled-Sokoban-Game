@@ -18,22 +18,31 @@ class Model extends RenderObject {
     this.translate(this.initialTransform.position);
     this.model.rotation = this.initialTransform.rotation;
     this.initBuffers();
+	this.shaderType = this.model.normalTexture != "defaultNormal.jpg" ? 3 : 0
+
+	if (this.model.diffuseTexture) {
+		console.log(`Mesh has a diffuse texture: ${this.model.diffuseTexture}`);
+	  }
   }
 
   initBuffers() {
     //create vertices, normal and indicies arrays
     const positions = new Float32Array(this.model.vertices);
     const normals = new Float32Array(this.model.normals);
-    //const textureCoords = new Float32Array(this.model.uvs);
+    const textureCoords = new Float32Array(this.model.uvs);
+	const bitangents = computeBitangents(positions,normals, textureCoords);
     var vertexArrayObject = this.gl.createVertexArray();
     this.gl.bindVertexArray(vertexArrayObject);
+
+	if (textureCoords.length / 2 !== positions.length / 3) { throw new Error(`UV/vertex mismatch: ${positions.length / 3} vertices but ${textureCoords.length / 2} UVs`); }
 
     this.buffers = {
       vao: vertexArrayObject,
       attributes: {
         position: initPositionAttribute(this.gl, this.programInfo, positions),
         normal: initNormalAttribute(this.gl, this.programInfo, normals),
-        // uv: initTextureCoords(this.gl, this.programInfo, textureCoords),
+        uv: initTextureCoords(this.gl, this.programInfo, textureCoords),
+		bitangents: initBitangentBuffer(this.gl, this.programInfo, bitangents),
       },
       numVertices: positions.length
     }

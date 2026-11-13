@@ -41,7 +41,14 @@ class Game {
 
   // runs once on startup after the scene loads the objects
   async onStart() {
-    // console.log("On start");
+    console.log("On start");
+	this.state.cameraViewMatrix = mat4.create();
+    this.state.cameraProjMatrix = mat4.create();
+	this.state.sunViewMatrix = mat4.create();
+	this.state.sunProjMatrix = mat4.create();
+	this.state.sunVPMatrix = mat4.create();
+	
+	this.state.animator = new Animator();
 
     // // this just prevents the context menu from popping up when you right click
     // document.addEventListener("contextmenu", (e) => {
@@ -114,6 +121,28 @@ class Game {
     //     this.spawnedObjects.push(tempObject);     // add these to a spawned objects list
     //     this.collidableObjects.push(tempObject);  // say these can be collided into
     //   }
+	
+    let tempObject = await spawnObject({
+      name: `TempBox`,
+      type: "mesh",
+      fileName: "Box.obj",
+      material: {
+        diffuse: vec3.fromValues(1.0, 1.0, 1.0),
+        diffuseTexture: {
+          name: "Universal_A_Alb.png",
+        },
+      },
+      position: vec3.fromValues(5, 0, 5),
+      scale: vec3.fromValues(1.0, 1.0, 1.0)
+    }, this.state);
+
+		 const box = {
+			 type: "box",
+			 canonicalPos: {x: 1, z: 1},
+			 submerged: false,
+			 sceneObject: tempObject,
+		 }
+		 this.state.animator.addObject({ x: 5, z: 5 }, tempObject, "box");
   }
 
   // Runs once every frame non stop after the scene loads
@@ -143,5 +172,45 @@ class Game {
 
     // example - call our collision check method on our cube
     // this.checkCollision(this.cube);
-  }
+	
+  	let camFront = vec3.fromValues(0, 0, 0);
+    vec3.add(camFront, state.camera.position, state.camera.front);
+    mat4.lookAt(this.state.cameraViewMatrix, state.camera.position, camFront, state.camera.up);
+
+    // Projection Matrix ....
+    let fovy = 90.0 * Math.PI / 180.0; // Vertical field of view in radians
+    let aspect = state.canvas.clientWidth / state.canvas.clientHeight; // Aspect ratio of the canvas
+    let near = 0.1; // Near clipping plane
+    let far = 1000000.0; // Far clipping plane
+    mat4.perspective(this.state.cameraProjMatrix, fovy, aspect, near, far);
+
+	// Sun view and projection
+	const center = calculateWorldCenter(18, 12);
+	const sunDir = vec3.fromValues(-1, -1, 1);
+	calculateSunViewMatrix(this.state.sunViewMatrix, center, sunDir);
+	calculateSunProjMatrix(this.state.sunProjMatrix, calculateWorldRadius(18,12), 5);
+	mat4.mul(this.state.sunVPMatrix, this.state.sunProjMatrix, this.state.sunViewMatrix);
+ }
+}
+
+function calculateSunViewMatrix(out, center, sunDir, distance = 10, up = [0, 1, 0]) {
+	const dir = vec3.normalize(vec3.create(), sunDir);
+	const eye = vec3.scaleAndAdd(vec3.create(), center, dir, -distance);
+
+	// Avoid a degenerate lookAt when the sun is (nearly) parallel to up
+	const safeUp = Math.abs(vec3.dot(dir, up)) > 0.999 ? [0, 0, 1] : up;
+
+	return mat4.lookAt(out, eye, center, safeUp);
+}
+
+function calculateSunProjMatrix(out, sceneRadius, distance) {
+	return mat4.ortho(out, -sceneRadius, sceneRadius, -sceneRadius, sceneRadius, 0.1, sceneRadius + distance);
+}
+
+function calculateWorldCenter(width, height) {
+	return vec3.fromValues(width / 2.0, 0.0, height / 2.0);
+}
+
+function calculateWorldRadius(width, height) {
+  return Math.hypot(width, height) / 2;
 }

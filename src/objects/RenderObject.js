@@ -29,7 +29,7 @@ class RenderObject {
       normalTexture: object.material && object.material.normalTexture && object.material.normalTexture.name ? object.material.normalTexture.name : "defaultNormal.jpg",
       textureNorm: object.material && object.material.normalTexture && object.material.normalTexture.name ? getTextures(glContext, object.material.normalTexture.name) : null,
     };
-
+	this.shaderType = this.model.normalTexture != "defaultNormal.jpg" ? 3 : 0
     this.modelMatrix = mat4.create();
     this.lightingShader = this.lightingShader.bind(this);
   }
@@ -67,8 +67,9 @@ class RenderObject {
     const positions = new Float32Array(this.model.vertices);
     const normals = new Float32Array(this.model.normals);
     const indices = new Uint16Array(this.model.triangles);
+	const UVs = new Float32Array(this.model.uvs);
+    const bitangents = new Float32Array(this.model.bitangents);
 
-    //const textureCoords = new Float32Array(this.model.uvs);
     var vertexArrayObject = this.gl.createVertexArray();
     this.gl.bindVertexArray(vertexArrayObject);
 
@@ -77,11 +78,14 @@ class RenderObject {
       attributes: {
         position: initPositionAttribute(this.gl, this.programInfo, positions),
         normal: initNormalAttribute(this.gl, this.programInfo, normals),
-        // uv: initTextureCoords(this.gl, this.programInfo, textureCoords),
+        uv: initTextureCoords(this.gl, this.programInfo, UVs),
+		bitangents: initBitangentBuffer(this.gl, this.programInfo, bitangents),
       },
       indicies: initIndexBuffer(this.gl, indices),
       numVertices: indices.length
     }
+	console.log(this.name, this.programInfo.attribLocations.vertexUV);
+
   }
 
   lightingShader() {
@@ -95,18 +99,24 @@ class RenderObject {
       attribLocations: {
         vertexPosition: this.gl.getAttribLocation(shaderProgram, 'aPosition'),
         vertexNormal: this.gl.getAttribLocation(shaderProgram, 'aNormal'),
-        // vertexUV: this.gl.getAttribLocation(shaderProgram, 'aUV'),
+        vertexUV: this.gl.getAttribLocation(shaderProgram, 'aUV'),
+        vertexBitangent: this.gl.getAttribLocation(shaderProgram, 'aBitangent'),
       },
       uniformLocations: {
         projection: this.gl.getUniformLocation(shaderProgram, 'uProjectionMatrix'),
         view: this.gl.getUniformLocation(shaderProgram, 'uViewMatrix'),
         model: this.gl.getUniformLocation(shaderProgram, 'uModelMatrix'),
-        // normalMatrix: this.gl.getUniformLocation(shaderProgram, 'normalMatrix'),
-        diffuseVal: this.gl.getUniformLocation(shaderProgram, 'diffuseVal'),
+        normalMatrix: this.gl.getUniformLocation(shaderProgram, 'uNormalMatrix'),
+        //diffuseVal: this.gl.getUniformLocation(shaderProgram, 'diffuseVal'),
+        cameraPosition: this.gl.getUniformLocation(shaderProgram, 'uCameraPos'),
+		lightMatrix: this.gl.getUniformLocation(shaderProgram, 'uLightMatrix'),
+        shadowSampler: this.gl.getUniformLocation(shaderProgram, 'uShadowTexture'),
+        diffuseSampler: this.gl.getUniformLocation(shaderProgram, 'uDiffuseTexture'),
+        normalSampler: this.gl.getUniformLocation(shaderProgram, 'uNormalTexture'),
+        normalSamplerExists: this.gl.getUniformLocation(shaderProgram, "uNormalSamplerExists")
         // ambientVal: this.gl.getUniformLocation(shaderProgram, 'ambientVal'),
         // specularVal: this.gl.getUniformLocation(shaderProgram, 'specularVal'),
         // nVal: this.gl.getUniformLocation(shaderProgram, 'nVal'),
-        // cameraPosition: this.gl.getUniformLocation(shaderProgram, 'uCameraPosition'),
         // numLights: this.gl.getUniformLocation(shaderProgram, 'numLights'),
         // lightPositions: this.gl.getUniformLocation(shaderProgram, 'uLightPositions'),
         // lightColours: this.gl.getUniformLocation(shaderProgram, 'uLightColours'),

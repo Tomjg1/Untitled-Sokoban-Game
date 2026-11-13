@@ -1,6 +1,6 @@
 var state = {};
 var game;
-var sceneFile = "scene.json"; // can change this to be the name of your scene
+var sceneFile = "L1.json"; // can change this to be the name of your scene
 
 // This function loads on window load, uses async functions to load the scene then try to render it
 window.onload = async () => {
@@ -35,6 +35,34 @@ async function loadShaderSource(url) {
   return res.text();
 }
 
+function initDepthObjects(gl, state) {
+	const SHADOW_SIZE = 2048;
+
+	const depthTexture = gl.createTexture();
+	gl.bindTexture(gl.TEXTURE_2D, depthTexture);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24, SHADOW_SIZE, SHADOW_SIZE, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.NONE);
+
+	const depthFBO = gl.createFramebuffer();
+	gl.bindFramebuffer(gl.FRAMEBUFFER, depthFBO);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, depthTexture, 0);
+	gl.drawBuffers([gl.NONE]);
+	gl.readBuffer(gl.NONE);
+
+	if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+	  console.error('Depth FBO incomplete');
+	}
+	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+	state.depthFBO = depthFBO;
+	state.depthTexture = depthTexture;
+	state.shadowSize = SHADOW_SIZE;
+}
+
 /**
  * Main function that gets called when the DOM loads
  */
@@ -61,6 +89,41 @@ async function main() {
   const vertShaderSample = await loadShaderSource("assets/shaders/sample.vert")
   const fragShaderSample = await loadShaderSource("assets/shaders/sample.frag")
 
+  const quadVertSource   = await loadShaderSource("assets/shaders/quad.vert")
+  const quadFragSource   = await loadShaderSource("assets/shaders/quad.frag")
+
+  const unlitVertSource = await loadShaderSource("assets/shaders/unlit.vert")
+  const unlitFragSource = await loadShaderSource("assets/shaders/unlit.frag")
+
+  const quadShader = initShaderProgram(gl, quadVertSource, quadFragSource)
+  const unlitShaderProgram = initShaderProgram(gl, unlitVertSource, unlitFragSource)
+
+  // Collect all the info needed to use the shader program.
+  const quadProgramInfo = {
+		// The actual shader program
+		program: quadShader,
+		attribLocations: {},
+		uniformLocations: {
+			projection: gl.getUniformLocation(quadShader, 'uProjection'),
+			pos: gl.getUniformLocation(quadShader, 'uPos'),
+			size: gl.getUniformLocation(quadShader, 'uSize'),
+		},
+  };
+  shaderValuesErrorCheck(quadProgramInfo);
+
+  // Collect all the info needed to use the shader program.
+  const unlitProgramInfo = {
+		// The actual shader program
+		program: unlitShaderProgram,
+		attribLocations: {},
+		uniformLocations: {
+			projection: gl.getUniformLocation(unlitShaderProgram, 'uProjectionMatrix'),
+			view: gl.getUniformLocation(unlitShaderProgram, 'uViewMatrix'),
+			model: gl.getUniformLocation(unlitShaderProgram, 'uModelMatrix'),
+		},
+  };
+  shaderValuesErrorCheck(unlitProgramInfo);
+
   /**
    * Initialize state with new values (some of these you can replace/change)
    */
@@ -77,9 +140,12 @@ async function main() {
     meshCache: {},
     samplerExists: 0,
     samplerNormExists: 0,
+	quadShader: quadProgramInfo,
+	unlitShader: unlitProgramInfo
   };
 
   state.numLights = state.pointLights.length;
+  initDepthObjects(gl, state);
 
   const now = new Date();
   for (let i = 0; i < state.loadObjects.length; i++) {
@@ -135,7 +201,18 @@ function startRendering(gl, state) {
     then = now;
 
     state.deltaTime = deltaTime;
-    drawScene(gl, deltaTime, state);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, state.depthFBO);
+	gl.viewport(0, 0, state.shadowSize, state.shadowSize);
+	gl.clear(gl.DEPTH_BUFFER_BIT);
+	gl.enable(gl.DEPTH_TEST);
+	shadowPass(gl, deltaTime, state, state.sunViewMatrix, state.sunProjMatrix);
+
+	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+	gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    drawScene(gl, deltaTime, state, state.cameraViewMatrix, state.cameraProjMatrix);
+
+	drawScreenQuads(gl, deltaTime, state);
     game.onUpdate(deltaTime); //constantly call our game loop
 
     // Request another frame when this one is done
@@ -145,6 +222,21 @@ function startRendering(gl, state) {
   requestAnimationFrame(render);
 }
 
+function drawScreenQuads(gl, deltaTime, state) {
+
+	gl.useProgram(state.quadShader.program);
+	let projection = mat4.create();
+	mat4.ortho(projection, 0, gl.canvas.width, 0, gl.canvas.height, 1, -0.5);
+	let pos = vec2.fromValues(0,0);
+	let size = vec2.fromValues(200,200);
+
+	gl.activeTexture(gl.TEXTURE0);
+	gl.bindTexture(gl.TEXTURE_2D, state.depthTexture);
+	gl.uniform2fv(state.quadShader.uniformLocations.pos, pos); 
+	gl.uniform2fv(state.quadShader.uniformLocations.size, size); 	
+	gl.uniformMatrix4fv(state.quadShader.uniformLocations.projection, false, projection);
+	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
 /**
  * 
  * @param {gl context} gl 
@@ -152,7 +244,7 @@ function startRendering(gl, state) {
  * @param {object - contains the state for the scene} state 
  * @purpose Iterate through game objects and render the objects aswell as update uniforms
  */
-function drawScene(gl, deltaTime, state) {
+function drawScene(gl, deltaTime, state, viewMatrix, projectionMatrix) {
   gl.clearColor(state.settings.backgroundColor[0], state.settings.backgroundColor[1], state.settings.backgroundColor[2], 1.0); // Here we are drawing the background color that is saved in our state
   gl.enable(gl.DEPTH_TEST); // Enable depth testing
   gl.depthFunc(gl.LEQUAL); // Near things obscure far things
@@ -176,32 +268,15 @@ function drawScene(gl, deltaTime, state) {
 
   // iterate over each object and render them
   sorted.map((object) => {
-    gl.useProgram(object.programInfo.program);
-    {
-      // Projection Matrix ....
-      let projectionMatrix = mat4.create();
-      let fovy = 90.0 * Math.PI / 180.0; // Vertical field of view in radians
-      let aspect = state.canvas.clientWidth / state.canvas.clientHeight; // Aspect ratio of the canvas
-      let near = 0.1; // Near clipping plane
-      let far = 1000000.0; // Far clipping plane
 
-      mat4.perspective(projectionMatrix, fovy, aspect, near, far);
+		gl.useProgram(object.programInfo.program);
+    {
       gl.uniformMatrix4fv(object.programInfo.uniformLocations.projection, false, projectionMatrix);
-      state.projectionMatrix = projectionMatrix;
 
       // View Matrix & Camera ....
-      let viewMatrix = mat4.create();
-      let camFront = vec3.fromValues(0, 0, 0);
-      vec3.add(camFront, state.camera.position, state.camera.front);
-      mat4.lookAt(
-        viewMatrix,
-        state.camera.position,
-        camFront,
-        state.camera.up,
-      );
       gl.uniformMatrix4fv(object.programInfo.uniformLocations.view, false, viewMatrix);
+
       gl.uniform3fv(object.programInfo.uniformLocations.cameraPosition, state.camera.position);
-      state.viewMatrix = viewMatrix;
 
       // Model Matrix ....
       let modelMatrix = mat4.create();
@@ -229,23 +304,17 @@ function drawScene(gl, deltaTime, state) {
       mat4.transpose(normalMatrix, normalMatrix);
       gl.uniformMatrix4fv(object.programInfo.uniformLocations.normalMatrix, false, normalMatrix);
 
+	  gl.uniformMatrix4fv(object.programInfo.uniformLocations.lightMatrix, false, state.sunVPMatrix);
+
       // Object material
       gl.uniform3fv(object.programInfo.uniformLocations.diffuseVal, object.material.diffuse);
       gl.uniform3fv(object.programInfo.uniformLocations.ambientVal, object.material.ambient);
       gl.uniform3fv(object.programInfo.uniformLocations.specularVal, object.material.specular);
       gl.uniform1f(object.programInfo.uniformLocations.nVal, object.material.n);
 
-      gl.uniform1i(object.programInfo.uniformLocations.numLights, state.numLights);
-      if (state.pointLights.length > 0) {
-        for (let i = 0; i < state.pointLights.length; i++) {
-          gl.uniform3fv(gl.getUniformLocation(object.programInfo.program, 'pointLights[' + i + '].position'), state.pointLights[i].position);
-          gl.uniform3fv(gl.getUniformLocation(object.programInfo.program, 'pointLights[' + i + '].colour'), state.pointLights[i].colour);
-          gl.uniform1f(gl.getUniformLocation(object.programInfo.program, 'pointLights[' + i + '].strength'), state.pointLights[i].strength);
-          gl.uniform1f(gl.getUniformLocation(object.programInfo.program, 'pointLights[' + i + '].linear'), state.pointLights[i].linear);
-          gl.uniform1f(gl.getUniformLocation(object.programInfo.program, 'pointLights[' + i + '].quadratic'), state.pointLights[i].quadratic);
-        }
-      }
-
+	  gl.activeTexture(gl.TEXTURE2);
+	  gl.bindTexture(gl.TEXTURE_2D, state.depthTexture);
+	  gl.uniform1i(object.programInfo.uniformLocations.shadowSampler, 2);
 
       {
         // Bind the buffer we want to draw
@@ -256,7 +325,7 @@ function drawScene(gl, deltaTime, state) {
           state.samplerExists = 1;
           gl.activeTexture(gl.TEXTURE0);
           gl.uniform1i(object.programInfo.uniformLocations.samplerExists, state.samplerExists);
-          gl.uniform1i(object.programInfo.uniformLocations.sampler, 0);
+          gl.uniform1i(object.programInfo.uniformLocations.diffuseSampler, 0);
           gl.bindTexture(gl.TEXTURE_2D, object.model.texture);
         } else {
           gl.activeTexture(gl.TEXTURE0);
@@ -265,7 +334,7 @@ function drawScene(gl, deltaTime, state) {
         }
 
         //check for normal texture and apply it
-        if (object.model.textureNorm != null) {
+        if (object.model.textureNorm != null && object.model.shaderType == 3) {
           state.samplerNormExists = 1;
           gl.activeTexture(gl.TEXTURE1);
           gl.uniform1i(object.programInfo.uniformLocations.normalSamplerExists, state.samplerNormExists);
@@ -288,5 +357,61 @@ function drawScene(gl, deltaTime, state) {
         }
       }
     }
+  });
+}
+
+function shadowPass(gl, deltaTime, state, viewMatrix, projectionMatrix) {
+  gl.clearColor(state.settings.backgroundColor[0], state.settings.backgroundColor[1], state.settings.backgroundColor[2], 1.0); // Here we are drawing the background color that is saved in our state
+  gl.enable(gl.DEPTH_TEST); // Enable depth testing
+  gl.depthFunc(gl.LEQUAL); // Near things obscure far things
+  gl.disable(gl.CULL_FACE); // Cull the backface of our objects to be more efficient
+  gl.cullFace(gl.BACK);
+  // gl.frontFace(gl.CCW);
+  gl.clearDepth(1.0); // Clear everything
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  gl.useProgram(state.unlitShader.program);
+  state.objects.forEach((object) => {
+      gl.uniformMatrix4fv(state.unlitShader.uniformLocations.projection, false, projectionMatrix);
+
+      // View Matrix & Camera ....
+      gl.uniformMatrix4fv(state.unlitShader.uniformLocations.view, false, viewMatrix);
+
+      // Model Matrix ....
+      let modelMatrix = mat4.create();
+      let negCentroid = vec3.fromValues(0.0, 0.0, 0.0);
+      vec3.negate(negCentroid, object.centroid);
+      mat4.translate(modelMatrix, modelMatrix, object.model.position);
+      mat4.translate(modelMatrix, modelMatrix, object.centroid);
+      mat4.mul(modelMatrix, modelMatrix, object.model.rotation);
+      mat4.scale(modelMatrix, modelMatrix, object.model.scale);
+      mat4.translate(modelMatrix, modelMatrix, negCentroid);
+
+      if (object.parent) {
+        let parent = getObject(state, object.parent);
+        if (parent.model && parent.model.modelMatrix) {
+          mat4.multiply(modelMatrix, parent.model.modelMatrix, modelMatrix);
+        }
+      }
+
+      object.model.modelMatrix = modelMatrix;
+      gl.uniformMatrix4fv(state.unlitShader.uniformLocations.model, false, modelMatrix);
+      {
+        // Bind the buffer we want to draw
+        gl.bindVertexArray(object.buffers.vao);
+
+        // Draw the object
+        const offset = 0; // Number of elements to skip before starting
+
+        //if its a mesh then we don't use an index buffer and use drawArrays instead of drawElements
+        if (object.type === "mesh" || object.type === "meshCustom")
+		{
+          gl.drawArrays(gl.TRIANGLES, offset, object.buffers.numVertices / 3);
+        }
+		else
+		{
+          gl.drawElements(gl.TRIANGLES, object.buffers.numVertices, gl.UNSIGNED_SHORT, offset);
+        }
+      }
   });
 }
