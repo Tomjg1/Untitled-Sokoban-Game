@@ -51,32 +51,27 @@ async function initShader(gl, name, uniforms) {
   return {program: shaderProgram, attribLocations: {}, uniformLocations};
 }
 
-function initDepthObjects(gl, state) {
-	const SHADOW_SIZE = 2048;
-
-	const depthTexture = gl.createTexture();
-	gl.bindTexture(gl.TEXTURE_2D, depthTexture);
-	gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24, SHADOW_SIZE, SHADOW_SIZE, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null);
+function createDepthObjects(gl, width, height) {
+	const texture = gl.createTexture();
+	gl.bindTexture(gl.TEXTURE_2D, texture);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24, width, height, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.NONE);
 
-	const depthFBO = gl.createFramebuffer();
-	gl.bindFramebuffer(gl.FRAMEBUFFER, depthFBO);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, depthTexture, 0);
+	const FBO = gl.createFramebuffer();
+	gl.bindFramebuffer(gl.FRAMEBUFFER, FBO);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, texture, 0);
 	gl.drawBuffers([gl.NONE]);
 	gl.readBuffer(gl.NONE);
 
-	if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
-	  console.error('Depth FBO incomplete');
-	}
+	if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) { console.error('Depth FBO incomplete'); }
+
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
-	state.depthFBO = depthFBO;
-	state.depthTexture = depthTexture;
-	state.shadowSize = SHADOW_SIZE;
+	return {texture, FBO, width, height}
 }
 
 /**
@@ -111,8 +106,8 @@ async function main() {
   const unlitVertSource = await loadShaderSource("assets/shaders/unlit.vert")
   const unlitFragSource = await loadShaderSource("assets/shaders/unlit.frag")
 
-  const waterShader = await initShader(gl, "water", ['uProjection', 'uView','uPos', 'uSize'])
-  const quadShader  = await initShader(gl, "quad", ['uProjection', 'uPos', 'uSize'])
+  const waterShader = await initShader(gl, "water", ['uProjection', 'uView','uPos', 'uSize', 'uViewportSize','uDepthTexture'])
+  const quadShader  = await initShader(gl, "quad", ['uProjection', 'uPos', 'uSize', 'uLinearizeDepth'])
 
   const unlitShaderProgram = initShaderProgram(gl, unlitVertSource, unlitFragSource)
 
@@ -151,7 +146,8 @@ async function main() {
   };
 
   state.numLights = state.pointLights.length;
-  initDepthObjects(gl, state);
+  state.shadowData = createDepthObjects(gl, 2048, 2048)
+  state.cameraDepthData = createDepthObjects(gl, gl.canvas.height, gl.canvas.height)
 
   const now = new Date();
   for (let i = 0; i < state.loadObjects.length; i++) {
@@ -207,13 +203,23 @@ function startRendering(gl, state) {
     then = now;
 
     state.deltaTime = deltaTime;
-	gl.bindFramebuffer(gl.FRAMEBUFFER, state.depthFBO);
-	gl.viewport(0, 0, state.shadowSize, state.shadowSize);
+
+	gl.bindFramebuffer(gl.FRAMEBUFFER, state.shadowData.FBO);
+	gl.viewport(0, 0, state.shadowData.width, state.shadowData.height);
 	gl.clear(gl.DEPTH_BUFFER_BIT);
 	gl.enable(gl.DEPTH_TEST);
 	gl.enable(gl.BLEND);
 	gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 	shadowPass(gl, deltaTime, state, state.sunViewMatrix, state.sunProjMatrix);
+
+	gl.bindFramebuffer(gl.FRAMEBUFFER, state.cameraDepthData.FBO);
+	gl.viewport(0, 0, state.cameraDepthData.width, state.cameraDepthData.height);
+	gl.clear(gl.DEPTH_BUFFER_BIT);
+
+	gl.enable(gl.DEPTH_TEST);
+	gl.enable(gl.BLEND);
+	gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+	shadowPass(gl, deltaTime, state, state.cameraViewMatrix, state.cameraProjMatrix);
 
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 	gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
@@ -238,7 +244,12 @@ function drawWater(gl, deltaTime, state) {
 	let pos = vec3.fromValues(0,-0.4,0);
 	let size = 20.0;
 
+	gl.activeTexture(gl.TEXTURE0);
+	gl.bindTexture(gl.TEXTURE_2D, state.cameraDepthData.texture);
+	gl.uniform1i(state.waterShader.uniformLocations.get('uDepthTexture'), 0);
+
 	gl.uniform3fv(state.waterShader.uniformLocations.get('uPos'), pos); 
+	gl.uniform2f(state.waterShader.uniformLocations.get('uViewportSize'), gl.drawingBufferWidth, gl.drawingBufferHeight);
 	gl.uniform1f(state.waterShader.uniformLocations.get('uSize'), size); 	
 	gl.uniformMatrix4fv(state.waterShader.uniformLocations.get('uProjection'), false, state.cameraProjMatrix);
 	gl.uniformMatrix4fv(state.waterShader.uniformLocations.get('uView'), false, state.cameraViewMatrix);
@@ -255,11 +266,19 @@ function drawScreenQuads(gl, deltaTime, state) {
 	let size = vec2.fromValues(200,200);
 
 	gl.activeTexture(gl.TEXTURE0);
-	gl.bindTexture(gl.TEXTURE_2D, state.depthTexture);
+	gl.bindTexture(gl.TEXTURE_2D, state.shadowData.texture);
+	gl.uniform1i(state.quadShader.uniformLocations.get('uLinearizeDepth'), 0); 
 	gl.uniform2fv(state.quadShader.uniformLocations.get('uPos'), pos); 
 	gl.uniform2fv(state.quadShader.uniformLocations.get('uSize'), size); 	
 	gl.uniformMatrix4fv(state.quadShader.uniformLocations.get('uProjection'), false, projection);
 
+	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+	
+	gl.bindTexture(gl.TEXTURE_2D, state.cameraDepthData.texture);
+	gl.uniform1i(state.quadShader.uniformLocations.get('uLinearizeDepth'), 1); 
+	gl.uniform2fv(state.quadShader.uniformLocations.get('uPos'), vec2.fromValues(200,0)); 
+	gl.uniform2fv(state.quadShader.uniformLocations.get('uSize'), vec2.fromValues(200,200)); 	
+	gl.uniformMatrix4fv(state.quadShader.uniformLocations.get('uProjection'), false, projection);
 	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 /**
@@ -338,7 +357,7 @@ function drawScene(gl, deltaTime, state, viewMatrix, projectionMatrix) {
       gl.uniform1f(object.programInfo.uniformLocations.nVal, object.material.n);
 
 	  gl.activeTexture(gl.TEXTURE2);
-	  gl.bindTexture(gl.TEXTURE_2D, state.depthTexture);
+	  gl.bindTexture(gl.TEXTURE_2D, state.shadowData.texture);
 	  gl.uniform1i(object.programInfo.uniformLocations.shadowSampler, 2);
 
       {

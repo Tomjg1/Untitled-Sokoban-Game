@@ -225,7 +225,7 @@ class Game {
     let fovy = 90.0 * Math.PI / 180.0; // Vertical field of view in radians
     let aspect = state.canvas.clientWidth / state.canvas.clientHeight; // Aspect ratio of the canvas
     let near = 0.1; // Near clipping plane
-    let far = 1000000.0; // Far clipping plane
+    let far = 100.0; // Far clipping plane
     mat4.perspective(this.state.cameraProjMatrix, fovy, aspect, near, far);
 
 	// Sun view and projection

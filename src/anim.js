@@ -17,6 +17,7 @@ class Animator {
 		type: type,
 		startPos: vec3.fromValues(pos.x, 0, pos.z),
 		targetPos: vec3.fromValues(pos.x, 0, pos.z),
+		offset: vec3.fromValues(0.5, -0.9, 0.5),
 		animTime: 0.0,
 		animTotalTime: 0.2,
 	});
@@ -74,6 +75,7 @@ class Animator {
 			// animTime counts down, so progress is how much of the total has elapsed
 			const t = 1 - obj.animTime / obj.animTotalTime;
 			vec3.lerp(obj.sceneRef.model.position, obj.startPos, obj.targetPos, t);
+			vec3.add(obj.sceneRef.model.position, obj.sceneRef.model.position, obj.offset);
 
 			if (obj.animTime > 0) {
 			  animsInProgress = true;
