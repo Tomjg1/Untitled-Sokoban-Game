@@ -38,7 +38,54 @@ class Game {
   //     // if (collide){ object.collider.onCollide(otherObject) } // fires what we defined our object should do when it collides
   //   });
   // }
+   setupControls() {
+		this.onKeyDown = (e) => {
+		  if (e.repeat) return;
 
+		  switch (e.key) {
+			case "a":
+			  e.preventDefault();
+				if (this.state.animator.finished == true) {
+				  const currentPos = this.state.tempBoxPos;
+				  const newPos = {x: this.state.tempBoxPos.x - 1, z: this.state.tempBoxPos.z};
+				  this.state.animator.performMoves([{type: "box", from: currentPos, to: newPos}]);
+				  this.state.tempBoxPos = newPos;
+				}
+			  break;
+			case "d":
+			  e.preventDefault();
+				if (this.state.animator.finished == true) {
+				  const currentPos = this.state.tempBoxPos;
+				  const newPos = {x: this.state.tempBoxPos.x + 1, z: this.state.tempBoxPos.z};
+				  this.state.animator.performMoves([{type: "box", from: currentPos, to: newPos}]);
+				  this.state.tempBoxPos = newPos;
+				}
+			  break;
+			case "w":
+			  e.preventDefault();
+				if (this.state.animator.finished == true) {
+				  const currentPos = this.state.tempBoxPos;
+				  const newPos = {x: this.state.tempBoxPos.x, z: this.state.tempBoxPos.z - 1};
+				  this.state.animator.performMoves([{type: "box", from: currentPos, to: newPos}]);
+				  this.state.tempBoxPos = newPos;
+				}
+			  break;
+			case "s":
+			  e.preventDefault();
+				if (this.state.animator.finished == true) {
+				  const currentPos = this.state.tempBoxPos;
+				  const newPos = {x: this.state.tempBoxPos.x, z: this.state.tempBoxPos.z + 1};
+				  this.state.animator.performMoves([{type: "box", from: currentPos, to: newPos}]);
+				  this.state.tempBoxPos = newPos;
+				}
+			  break;
+			default:
+			  break;
+		  }
+		};
+
+		document.addEventListener("keydown", this.onKeyDown);
+	  }
   // runs once on startup after the scene loads the objects
   async onStart() {
     console.log("On start");
@@ -136,17 +183,14 @@ class Game {
       scale: vec3.fromValues(1.0, 1.0, 1.0)
     }, this.state);
 
-		 const box = {
-			 type: "box",
-			 canonicalPos: {x: 1, z: 1},
-			 submerged: false,
-			 sceneObject: tempObject,
-		 }
-		 this.state.animator.addObject({ x: 5, z: 5 }, tempObject, "box");
+	this.state.tempBoxPos = {x: 5, z: 5};
+	this.state.animator.addObject(this.state.tempBoxPos, tempObject, "box");
+	this.setupControls();
   }
 
   // Runs once every frame non stop after the scene loads
   onUpdate(deltaTime) {
+	this.state.animator.update(deltaTime)
     // TODO - Here we can add game logic, like moving game objects, detecting collisions, you name it. Examples of functions can be found in sceneFunctions
 
     // example: Rotate a single object we defined in our start method
