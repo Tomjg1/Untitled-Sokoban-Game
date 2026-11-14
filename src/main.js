@@ -35,6 +35,22 @@ async function loadShaderSource(url) {
   return res.text();
 }
 
+async function initShader(gl, name, uniforms) {
+  const vertSource = await loadShaderSource(`assets/shaders/${name}.vert`)
+  const fragSource = await loadShaderSource(`assets/shaders/${name}.frag`)
+
+  const shaderProgram = initShaderProgram(gl, vertSource, fragSource)
+
+  const uniformLocations = new Map()
+  for (const uniform of uniforms) {
+	const loc = gl.getUniformLocation(shaderProgram, uniform)
+    if (loc === null) { throw new Error(`Shader "${name}": uniform "${uniform}" not found or optimized out`) }
+    uniformLocations.set(uniform, loc)
+  }
+
+  return {program: shaderProgram, attribLocations: {}, uniformLocations};
+}
+
 function initDepthObjects(gl, state) {
 	const SHADOW_SIZE = 2048;
 
@@ -95,21 +111,10 @@ async function main() {
   const unlitVertSource = await loadShaderSource("assets/shaders/unlit.vert")
   const unlitFragSource = await loadShaderSource("assets/shaders/unlit.frag")
 
-  const quadShader = initShaderProgram(gl, quadVertSource, quadFragSource)
-  const unlitShaderProgram = initShaderProgram(gl, unlitVertSource, unlitFragSource)
+  const waterShader = await initShader(gl, "water", ['uProjection', 'uView','uPos', 'uSize'])
+  const quadShader  = await initShader(gl, "quad", ['uProjection', 'uPos', 'uSize'])
 
-  // Collect all the info needed to use the shader program.
-  const quadProgramInfo = {
-		// The actual shader program
-		program: quadShader,
-		attribLocations: {},
-		uniformLocations: {
-			projection: gl.getUniformLocation(quadShader, 'uProjection'),
-			pos: gl.getUniformLocation(quadShader, 'uPos'),
-			size: gl.getUniformLocation(quadShader, 'uSize'),
-		},
-  };
-  shaderValuesErrorCheck(quadProgramInfo);
+  const unlitShaderProgram = initShaderProgram(gl, unlitVertSource, unlitFragSource)
 
   // Collect all the info needed to use the shader program.
   const unlitProgramInfo = {
@@ -140,7 +145,8 @@ async function main() {
     meshCache: {},
     samplerExists: 0,
     samplerNormExists: 0,
-	quadShader: quadProgramInfo,
+	quadShader,
+	waterShader,
 	unlitShader: unlitProgramInfo
   };
 
@@ -205,12 +211,16 @@ function startRendering(gl, state) {
 	gl.viewport(0, 0, state.shadowSize, state.shadowSize);
 	gl.clear(gl.DEPTH_BUFFER_BIT);
 	gl.enable(gl.DEPTH_TEST);
+	gl.enable(gl.BLEND);
+	gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 	shadowPass(gl, deltaTime, state, state.sunViewMatrix, state.sunProjMatrix);
 
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 	gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     drawScene(gl, deltaTime, state, state.cameraViewMatrix, state.cameraProjMatrix);
+
+	drawWater(gl, deltaTime, state);
 
 	drawScreenQuads(gl, deltaTime, state);
     game.onUpdate(deltaTime); //constantly call our game loop
@@ -220,6 +230,20 @@ function startRendering(gl, state) {
   }
   // Draw the scene
   requestAnimationFrame(render);
+}
+
+function drawWater(gl, deltaTime, state) {
+	gl.bindVertexArray(null)
+	gl.useProgram(state.waterShader.program);
+	let pos = vec3.fromValues(0,-0.4,0);
+	let size = 20.0;
+
+	gl.uniform3fv(state.waterShader.uniformLocations.get('uPos'), pos); 
+	gl.uniform1f(state.waterShader.uniformLocations.get('uSize'), size); 	
+	gl.uniformMatrix4fv(state.waterShader.uniformLocations.get('uProjection'), false, state.cameraProjMatrix);
+	gl.uniformMatrix4fv(state.waterShader.uniformLocations.get('uView'), false, state.cameraViewMatrix);
+
+	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 
 function drawScreenQuads(gl, deltaTime, state) {
@@ -232,9 +256,10 @@ function drawScreenQuads(gl, deltaTime, state) {
 
 	gl.activeTexture(gl.TEXTURE0);
 	gl.bindTexture(gl.TEXTURE_2D, state.depthTexture);
-	gl.uniform2fv(state.quadShader.uniformLocations.pos, pos); 
-	gl.uniform2fv(state.quadShader.uniformLocations.size, size); 	
-	gl.uniformMatrix4fv(state.quadShader.uniformLocations.projection, false, projection);
+	gl.uniform2fv(state.quadShader.uniformLocations.get('uPos'), pos); 
+	gl.uniform2fv(state.quadShader.uniformLocations.get('uSize'), size); 	
+	gl.uniformMatrix4fv(state.quadShader.uniformLocations.get('uProjection'), false, projection);
+
 	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 /**
