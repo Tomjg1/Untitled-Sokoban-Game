@@ -113,7 +113,8 @@ class RenderObject {
         shadowSampler: this.gl.getUniformLocation(shaderProgram, 'uShadowTexture'),
         diffuseSampler: this.gl.getUniformLocation(shaderProgram, 'uDiffuseTexture'),
         normalSampler: this.gl.getUniformLocation(shaderProgram, 'uNormalTexture'),
-        normalSamplerExists: this.gl.getUniformLocation(shaderProgram, "uNormalSamplerExists")
+        normalSamplerExists: this.gl.getUniformLocation(shaderProgram, "uNormalSamplerExists"),
+        samplerExists: this.gl.getUniformLocation(shaderProgram, "uDiffuseSamplerExists")
         // ambientVal: this.gl.getUniformLocation(shaderProgram, 'ambientVal'),
         // specularVal: this.gl.getUniformLocation(shaderProgram, 'specularVal'),
         // nVal: this.gl.getUniformLocation(shaderProgram, 'nVal'),

@@ -172,11 +172,11 @@ class Game {
     let tempObject = await spawnObject({
       name: `TempBox`,
       type: "mesh",
-      fileName: "Box.obj",
+      fileName: "Player.obj",
       material: {
         diffuse: vec3.fromValues(1.0, 1.0, 1.0),
         diffuseTexture: {
-          name: "Universal_A_Alb.png",
+          //name: "Universal_A_Alb.png",
         },
       },
       position: vec3.fromValues(5, 0, 5),

@@ -10,7 +10,8 @@ uniform sampler2D uShadowTexture;
 uniform sampler2D uDiffuseTexture;
 uniform sampler2D uNormalTexture;
 
-uniform int  uNormalSamplerExists;
+uniform int uNormalSamplerExists;
+uniform int uDiffuseSamplerExists;
 
 in vec3 oNormal;
 in vec2 oUV;
@@ -94,7 +95,12 @@ void main() {
 	sun.direction = normalize(vec3(-1.0, -1.0, 1.0));  // down, toward the origin from (+x, -z)
 	sun.color    = vec3(0.9, 0.9, 0.95);
 	sun.strength  = 1.0;
-	vec3 diffuse = texture(uDiffuseTexture, oUV).rgb;
+
+	vec3 diffuse = vec3(1.0, 1.0, 1.0);
+	if (uDiffuseSamplerExists == 1)
+	{
+		diffuse = texture(uDiffuseTexture, oUV).rgb;
+	}
 
 	vec3 normal = oNormal;
 	if (uNormalSamplerExists == 1)

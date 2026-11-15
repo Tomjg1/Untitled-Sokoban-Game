@@ -17,17 +17,18 @@ class Animator {
 		type: type,
 		startPos: vec3.fromValues(pos.x, 0, pos.z),
 		targetPos: vec3.fromValues(pos.x, 0, pos.z),
-		offset: vec3.fromValues(0.5, -0.9, 0.5),
+		offset: vec3.fromValues(0.5, 0, 0.5),
 		animTime: 0.0,
 		animTotalTime: 0.2,
 	});
     return sceneRef;
   }
 
-  clearObjects() {
-	this.objects.clear();
-    this.finished = true;
-  }
+	clearObjects() {
+		this.objects.clear();
+		this.finished = true;
+	}
+	easeInOutQuad(x) { return x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2; }
 
 	performMoves(moves) {
 		if (!this.finished) return false;
@@ -73,7 +74,9 @@ class Animator {
 			obj.animTime = Math.max(obj.animTime - deltaTime, 0);
 
 			// animTime counts down, so progress is how much of the total has elapsed
-			const t = 1 - obj.animTime / obj.animTotalTime;
+			let t = 1 - obj.animTime / obj.animTotalTime;
+			t = this.easeInOutQuad(t);
+
 			vec3.lerp(obj.sceneRef.model.position, obj.startPos, obj.targetPos, t);
 			vec3.add(obj.sceneRef.model.position, obj.sceneRef.model.position, obj.offset);
 
