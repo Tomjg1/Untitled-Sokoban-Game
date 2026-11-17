@@ -75,13 +75,33 @@ function createDepthObjects(gl, width, height) {
 }
 
 /**
+ * @param   {HTMLCanvasElement} canvas - The canvas which should be resized.
+ * @returns {boolean} True if the drawing buffer size changed.
+ * @purpose - Helper function to resize cavas size to match device resolution.
+ */
+function resizeCanvasToDisplaySize(canvas) {
+  // DPR defaults to 1 if window.devicePixelRatio is undefined and is capped at 2 for performance.
+  const DPR    = Math.min(window.devicePixelRatio || 1, 2);
+  const width  = Math.round(canvas.clientWidth  * DPR);
+  const height = Math.round(canvas.clientHeight * DPR);
+
+  // Resize canvas to adjust for device pixel ratio.
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width  = width;
+    canvas.height = height;
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Main function that gets called when the DOM loads
  */
 async function main() {
   //document.body.appendChild( stats.dom );
   const canvas = document.querySelector("#glCanvas");
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+  resizeCanvasToDisplaySize(canvas);
 
   // Initialize the WebGL2 context
   var gl = canvas.getContext("webgl2");
